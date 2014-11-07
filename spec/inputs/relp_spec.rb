@@ -1,5 +1,5 @@
 # coding: utf-8
-require "test_utils"
+require "spec_helper"
 require "socket"
 require "logstash/util/relp"
 
