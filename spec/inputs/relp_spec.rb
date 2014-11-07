@@ -4,7 +4,6 @@ require "socket"
 require "logstash/util/relp"
 
 describe "inputs/relp" do
-  extend LogStash::RSpec
 
   describe "Single client connection" do
     event_count = 10
