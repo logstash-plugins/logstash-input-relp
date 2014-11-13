@@ -3,7 +3,7 @@ require "spec_helper"
 require "socket"
 require "logstash/util/relp"
 
-describe "inputs/relp" do
+describe "inputs/relp", :socket => true do
 
   describe "Single client connection" do
     event_count = 10
