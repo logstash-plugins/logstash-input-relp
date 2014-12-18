@@ -120,7 +120,7 @@ class RelpServer < Relp
     end
     if ssl_context
       @server = OpenSSL::SSL::SSLServer.new(@server, ssl_context)
-    end # @ssl_enable
+    end
     @logger.info? and @logger.info("Started #{ssl_context ? 'SSL-enabled ' : ''}RELP Server", :host => host, :port => port)
   end
 

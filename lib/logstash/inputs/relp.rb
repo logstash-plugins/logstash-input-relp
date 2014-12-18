@@ -56,26 +56,31 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
   def register
     @logger.info("Starting relp input listener", :address => "#{@host}:#{@port}")
     if @ssl_enable
-      require "openssl"
-
-      @ssl_context = OpenSSL::SSL::SSLContext.new
-      @ssl_context.cert = OpenSSL::X509::Certificate.new(File.read(@ssl_cert))
-      @ssl_context.key = OpenSSL::PKey::RSA.new(File.read(@ssl_key),@ssl_key_passphrase)
-      if @ssl_verify
-        @cert_store = OpenSSL::X509::Store.new
-        # Load the system default certificate path to the store
-        @cert_store.set_default_paths
-        if File.directory?(@ssl_cacert)
-          @cert_store.add_path(@ssl_cacert)
-        else
-          @cert_store.add_file(@ssl_cacert)
-        end
-        @ssl_context.cert_store = @cert_store
-        @ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER|OpenSSL::SSL::VERIFY_FAIL_IF_NO_PEER_CERT
-      end
+      initialize_ssl_context
     end
     @relp_server = RelpServer.new(@host, @port,['syslog'], @ssl_context)
   end # def register
+
+  private
+  def initialize_ssl_context
+    require "openssl"
+
+    @ssl_context = OpenSSL::SSL::SSLContext.new
+    @ssl_context.cert = OpenSSL::X509::Certificate.new(File.read(@ssl_cert))
+    @ssl_context.key = OpenSSL::PKey::RSA.new(File.read(@ssl_key),@ssl_key_passphrase)
+    if @ssl_verify
+      @cert_store = OpenSSL::X509::Store.new
+      # Load the system default certificate path to the store
+      @cert_store.set_default_paths
+      if File.directory?(@ssl_cacert)
+        @cert_store.add_path(@ssl_cacert)
+      else
+        @cert_store.add_file(@ssl_cacert)
+      end
+      @ssl_context.cert_store = @cert_store
+      @ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER|OpenSSL::SSL::VERIFY_FAIL_IF_NO_PEER_CERT
+    end
+  end
 
   private
   def relp_stream(relpserver,socket,output_queue,client_address)
