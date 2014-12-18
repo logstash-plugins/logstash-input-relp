@@ -97,7 +97,7 @@ end
 
 class RelpServer < Relp
 
-  def initialize(host,port,required_commands=[])
+  def initialize(host,port,required_commands=[],ssl_context=nil)
     @logger = Cabin::Channel.get(LogStash)
     
     @server=true
@@ -115,7 +115,10 @@ class RelpServer < Relp
                     :host => host, :port => port)
       raise
     end
-    @logger.info? and @logger.info("Started RELP Server", :host => host, :port => port)
+    if ssl_context
+      @server = OpenSSL::SSL::SSLServer.new(@server, ssl_context)
+    end # @ssl_enable
+    @logger.info? and @logger.info("Started #{ssl_context ? 'SSL-enabled ' : ''}RELP Server", :host => host, :port => port)
   end
 
   def accept
