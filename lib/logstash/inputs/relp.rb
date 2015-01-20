@@ -20,7 +20,6 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
   class Interrupted < StandardError; end
 
   config_name "relp"
-  milestone 1
 
   default :codec, "plain"
 
