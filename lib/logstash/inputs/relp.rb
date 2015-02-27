@@ -29,6 +29,25 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
   # The port to listen on.
   config :port, :validate => :number, :required => true
 
+  # Enable SSL (must be set for other `ssl_` options to take effect).
+  config :ssl_enable, :validate => :boolean, :default => false
+
+  # Verify the identity of the other end of the SSL connection against the CA.
+  # For input, sets the field `sslsubject` to that of the client certificate.
+  config :ssl_verify, :validate => :boolean, :default => false
+
+  # The SSL CA certificate, chainfile or CA path. The system CA path is automatically included.
+  config :ssl_cacert, :validate => :path
+
+  # SSL certificate path
+  config :ssl_cert, :validate => :path
+
+  # SSL key path
+  config :ssl_key, :validate => :path
+
+  # SSL key passphrase
+  config :ssl_key_passphrase, :validate => :password, :default => nil
+
   def initialize(*args)
     super(*args)
   end # def initialize
@@ -36,8 +55,32 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
   public
   def register
     @logger.info("Starting relp input listener", :address => "#{@host}:#{@port}")
-    @relp_server = RelpServer.new(@host, @port,['syslog'])
+    if @ssl_enable
+      initialize_ssl_context
+    end
+    @relp_server = RelpServer.new(@host, @port,['syslog'], @ssl_context)
   end # def register
+
+  private
+  def initialize_ssl_context
+    require "openssl"
+
+    @ssl_context = OpenSSL::SSL::SSLContext.new
+    @ssl_context.cert = OpenSSL::X509::Certificate.new(File.read(@ssl_cert))
+    @ssl_context.key = OpenSSL::PKey::RSA.new(File.read(@ssl_key),@ssl_key_passphrase)
+    if @ssl_verify
+      @cert_store = OpenSSL::X509::Store.new
+      # Load the system default certificate path to the store
+      @cert_store.set_default_paths
+      if File.directory?(@ssl_cacert)
+        @cert_store.add_path(@ssl_cacert)
+      else
+        @cert_store.add_file(@ssl_cacert)
+      end
+      @ssl_context.cert_store = @cert_store
+      @ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER|OpenSSL::SSL::VERIFY_FAIL_IF_NO_PEER_CERT
+    end
+  end
 
   private
   def relp_stream(relpserver,socket,output_queue,client_address)
@@ -46,6 +89,7 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
       @codec.decode(frame["message"]) do |event|
         decorate(event)
         event["host"] = client_address
+        event["sslsubject"] ||= socket.peer_cert.subject if @ssl_enable && @ssl_verify
         output_queue << event
       end
 
@@ -87,6 +131,12 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
         @logger.warn('Relp client trying to open connection with something other than open:'+e.message)
       rescue Relp::InsufficientCommands
         @logger.warn('Relp client incapable of syslog')
+      rescue Relp::ConnectionClosed
+        @logger.debug('Relp Connection closed')
+      rescue OpenSSL::SSL::SSLError => ssle
+        # NOTE(mrichar1): This doesn't return a useful error message for some reason
+        @logger.error("SSL Error", :exception => ssle,
+                      :backtrace => ssle.backtrace)
       rescue IOError, Interrupted
         if @interrupted
           # Intended shutdown, get out of the loop
