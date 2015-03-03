@@ -1,11 +1,12 @@
 # coding: utf-8
 require "logstash/devutils/rspec/spec_helper"
 require "socket"
+require "logstash/inputs/relp"
 require "logstash/util/relp"
 
-describe "inputs/relp", :socket => true do
+describe LogStash::Inputs::Relp do
 
-  describe "Single client connection" do
+  context "Single client connection" do
     event_count = 10
     port = 5511
     config <<-CONFIG
@@ -36,7 +37,7 @@ describe "inputs/relp", :socket => true do
       th.join
     end # input
   end
-  describe "Two client connection" do
+  context "Two client connection" do
     event_count = 100
     port = 5512
     config <<-CONFIG

@@ -87,22 +87,15 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
         @logger.warn('Relp client trying to open connection with something other than open:'+e.message)
       rescue Relp::InsufficientCommands
         @logger.warn('Relp client incapable of syslog')
-      rescue IOError, Interrupted
-        if @interrupted
-          # Intended shutdown, get out of the loop
-          @relp_server.shutdown
-          break
-        else
-          # Else it was a genuine IOError caused by something else, so propagate it up..
-          raise
-        end
+      rescue IOError, LogStash::ShutdownSignal
+        teardown
+        break
       end
     end # loop
   end # def run
 
   def teardown
-    @interrupted = true
-    @thread.raise(Interrupted.new)
+    @relp_server.shutdown
   end
 end # class LogStash::Inputs::Relp
 
