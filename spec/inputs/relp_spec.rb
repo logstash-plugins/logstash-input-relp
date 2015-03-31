@@ -3,12 +3,12 @@ require "logstash/devutils/rspec/spec_helper"
 require "socket"
 require "logstash/util/relp"
 
-describe "inputs/relp", :socket => true do
+describe "inputs/relp" do
 
-  describe "Single client connection" do
+  it "should do single client connection" do
     event_count = 10
     port = 5511
-    config <<-CONFIG
+    conf = <<-CONFIG
     input {
       relp {
         type => "blah"
@@ -17,29 +17,23 @@ describe "inputs/relp", :socket => true do
     }
     CONFIG
 
-    input do |pipeline, queue|
-      th = Thread.new { pipeline.run }
-      sleep 0.1 while !pipeline.ready?
-
-      #Send events from clients
+    events = input(conf) do |pipeline, queue|
       client = RelpClient.new("0.0.0.0", port, ["syslog"])
       event_count.times do |value|
         client.syslog_write("Hello #{value}")
       end
+      event_count.times.collect { queue.pop }
+    end
 
-      events = event_count.times.collect { queue.pop }
-      event_count.times do |i|
-        insist { events[i]["message"] } == "Hello #{i}"
-      end
-
-      pipeline.shutdown
-      th.join
-    end # input
+    event_count.times do |i|
+      insist { events[i]["message"] } == "Hello #{i}"
+    end
   end
-  describe "Two client connection" do
+
+  it "should do two client connection" do
     event_count = 100
     port = 5512
-    config <<-CONFIG
+    conf = <<-CONFIG
     input {
       relp {
         type => "blah"
@@ -48,22 +42,19 @@ describe "inputs/relp", :socket => true do
     }
     CONFIG
 
-    input do |pipeline, queue|
-      Thread.new { pipeline.run }
-      sleep 0.1 while !pipeline.ready?
-
-      #Send events from clients sockets
+    events = input(conf) do |pipeline, queue|
       client = RelpClient.new("0.0.0.0", port, ["syslog"])
       client2 = RelpClient.new("0.0.0.0", port, ["syslog"])
 
-      event_count.times do |value|
+      event_count.times do
         client.syslog_write("Hello from client")
         client2.syslog_write("Hello from client 2")
       end
 
-      events = (event_count*2).times.collect { queue.pop }
-      insist { events.select{|event| event["message"]=="Hello from client" }.size } == event_count
-      insist { events.select{|event| event["message"]=="Hello from client 2" }.size } == event_count
-    end # input
+      (event_count * 2).times.map{queue.pop}
+    end
+
+    insist { events.select{|event| event["message"] == "Hello from client" }.size } == event_count
+    insist { events.select{|event| event["message"] == "Hello from client 2" }.size } == event_count
   end
 end
