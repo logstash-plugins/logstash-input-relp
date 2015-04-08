@@ -8,7 +8,7 @@ require "logstash/util/socket_peer"
 
 # Read RELP events over a TCP socket.
 #
-# For more information about RELP, see 
+# For more information about RELP, see
 # <http://www.rsyslog.com/doc/imrelp.html>
 #
 # This protocol implements application-level acknowledgements to help protect
@@ -17,8 +17,6 @@ require "logstash/util/socket_peer"
 # Message acks only function as far as messages being put into the queue for
 # filters; anything lost after that point will not be retransmitted
 class LogStash::Inputs::Relp < LogStash::Inputs::Base
-  class Interrupted < StandardError; end
-
   config_name "relp"
 
   default :codec, "plain"
@@ -31,6 +29,8 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
 
   def initialize(*args)
     super(*args)
+    @interrupted = false
+    @relp_server = nil
   end # def initialize
 
   public
@@ -49,7 +49,7 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
         output_queue << event
       end
 
-      #To get this far, the message must have made it into the queue for 
+      #To get this far, the message must have made it into the queue for
       #filtering. I don't think it's possible to wait for output before ack
       #without fundamentally breaking the plugin architecture
       relpserver.ack(socket, frame['txnr'])
@@ -59,7 +59,7 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
   public
   def run(output_queue)
     @thread = Thread.current
-    loop do
+    while !@interrupted
       begin
         # Start a new thread for each connection.
         Thread.start(@relp_server.accept) do |client|
@@ -87,22 +87,22 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
         @logger.warn('Relp client trying to open connection with something other than open:'+e.message)
       rescue Relp::InsufficientCommands
         @logger.warn('Relp client incapable of syslog')
-      rescue IOError, Interrupted
-        if @interrupted
-          # Intended shutdown, get out of the loop
-          @relp_server.shutdown
-          break
-        else
-          # Else it was a genuine IOError caused by something else, so propagate it up..
-          raise
-        end
+      rescue IOError
+        break if @interrupted
+        raise
+      rescue LogStash::ShutdownSignal
+        @interrupted = true
+        break
       end
     end # loop
   end # def run
 
   def teardown
     @interrupted = true
-    @thread.raise(Interrupted.new)
+    if @relp_server
+      @relp_server.shutdown rescue nil
+      @relp_server = nil
+    end
   end
 end # class LogStash::Inputs::Relp
 
