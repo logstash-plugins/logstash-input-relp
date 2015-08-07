@@ -23,9 +23,8 @@ describe "inputs/relp" do
   describe "multiple client connections" do
 
     let(:nclients) { rand(200) }
-    let(:nevents) { 100 }
-    let(:port)   { 5512 }
-    let(:type)   { "blah" }
+    let(:nevents)  { 100 }
+    let(:port)     { 5512 }
 
     let(:conf) do
       <<-CONFIG
@@ -40,20 +39,19 @@ describe "inputs/relp" do
 
     let(:clients) { setup_clients(nclients, port) }
 
-    let(:events) do input(conf) do |pipeline, queue|
-      nevents.times do |value|
-        clients.each_with_index do |client, index|
-          client.syslog_write("Hello from client#{index}")
+    let(:events) do
+      input(conf, (nevents*nclients)) do
+        nevents.times do |value|
+          clients.each_with_index do |client, index|
+            client.syslog_write("Hello from client#{index}")
+          end
         end
       end
-      (nevents * nclients).times.collect { queue.pop }
-    end
     end
 
     it "should do two client connections" do
       nclients.times do |client_id|
-        client_events = events.select{|event| event["message"] == "Hello from client#{client_id}" }
-        expect(client_events.size).to eq(nevents)
+        expect(filter(events,  "Hello from client#{client_id}").size).to eq(nevents)
       end
     end
 
