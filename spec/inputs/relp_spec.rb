@@ -1,7 +1,6 @@
-# coding: utf-8
-require "logstash/devutils/rspec/spec_helper"
-require "socket"
+# encoding: utf-8
 require "logstash/util/relp"
+require_relative "../spec_helper"
 
 describe "inputs/relp" do
 
@@ -16,6 +15,9 @@ describe "inputs/relp" do
       expect {input.register}.to_not raise_error
     end
 
+  end
+
+  describe "ssl support" do
   end
 
   describe "multiple client connections" do
@@ -36,11 +38,7 @@ describe "inputs/relp" do
       CONFIG
     end
 
-    let(:clients) do
-      nclients.times.inject([]) do |clients|
-        clients << RelpClient.new("0.0.0.0", port, ["syslog"])
-      end
-    end
+    let(:clients) { setup_clients(nclients, port) }
 
     let(:events) do input(conf) do |pipeline, queue|
       nevents.times do |value|
