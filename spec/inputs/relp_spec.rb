@@ -5,56 +5,59 @@ require "logstash/util/relp"
 
 describe "inputs/relp" do
 
-  it "should do single client connection" do
-    event_count = 10
-    port = 5511
-    conf = <<-CONFIG
-    input {
-      relp {
-        type => "blah"
-        port => #{port}
-      }
-    }
-    CONFIG
-
-    events = input(conf) do |pipeline, queue|
-      client = RelpClient.new("0.0.0.0", port, ["syslog"])
-      event_count.times do |value|
-        client.syslog_write("Hello #{value}")
-      end
-      event_count.times.collect { queue.pop }
-    end
-
-    event_count.times do |i|
-      insist { events[i]["message"] } == "Hello #{i}"
-    end
+  before do
+    srand(RSpec.configuration.seed)
   end
 
-  it "should do two client connection" do
-    event_count = 100
-    port = 5512
-    conf = <<-CONFIG
-    input {
-      relp {
-        type => "blah"
-        port => #{port}
-      }
-    }
-    CONFIG
+  describe "registration and teardown" do
 
-    events = input(conf) do |pipeline, queue|
-      client = RelpClient.new("0.0.0.0", port, ["syslog"])
-      client2 = RelpClient.new("0.0.0.0", port, ["syslog"])
-
-      event_count.times do
-        client.syslog_write("Hello from client")
-        client2.syslog_write("Hello from client 2")
-      end
-
-      (event_count * 2).times.map{queue.pop}
+    it "should register without errors" do
+      input = LogStash::Plugin.lookup("input", "relp").new("port" => 1234)
+      expect {input.register}.to_not raise_error
     end
 
-    insist { events.select{|event| event["message"] == "Hello from client" }.size } == event_count
-    insist { events.select{|event| event["message"] == "Hello from client 2" }.size } == event_count
+  end
+
+  describe "multiple client connections" do
+
+    let(:nclients) { rand(200) }
+    let(:nevents) { 100 }
+    let(:port)   { 5512 }
+    let(:type)   { "blah" }
+
+    let(:conf) do
+      <<-CONFIG
+        input {
+          relp {
+            type => "blah"
+            port => #{port}
+         }
+       }
+      CONFIG
+    end
+
+    let(:clients) do
+      nclients.times.inject([]) do |clients|
+        clients << RelpClient.new("0.0.0.0", port, ["syslog"])
+      end
+    end
+
+    let(:events) do input(conf) do |pipeline, queue|
+      nevents.times do |value|
+        clients.each_with_index do |client, index|
+          client.syslog_write("Hello from client#{index}")
+        end
+      end
+      (nevents * nclients).times.collect { queue.pop }
+    end
+    end
+
+    it "should do two client connections" do
+      nclients.times do |client_id|
+        client_events = events.select{|event| event["message"] == "Hello from client#{client_id}" }
+        expect(client_events.size).to eq(nevents)
+      end
+    end
+
   end
 end
