@@ -68,6 +68,7 @@ describe "inputs/relp" do
             type => "blah"
             port => #{port}
             ssl_enable => true
+            ssl_verify => false
             ssl_cert => "#{certificate.ssl_cert}"
             ssl_key  => "#{certificate.ssl_key}"
          }

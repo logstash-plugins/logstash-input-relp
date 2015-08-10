@@ -32,7 +32,7 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
 
   # Verify the identity of the other end of the SSL connection against the CA.
   # For input, sets the field `sslsubject` to that of the client certificate.
-  config :ssl_verify, :validate => :boolean, :default => false
+  config :ssl_verify, :validate => :boolean, :default => true
 
   # The SSL CA certificate, chainfile or CA path. The system CA path is automatically included.
   config :ssl_cacert, :validate => :path
@@ -57,6 +57,13 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
     @logger.info("Starting relp input listener", :address => "#{@host}:#{@port}")
     if @ssl_enable
       initialize_ssl_context
+      if @ssl_verify == false
+        @logger.warn [
+          "** WARNING ** Detected UNSAFE options in relp input configuration!",
+          "** WARNING ** You have enabled encryption but DISABLED certificate verification.",
+          "** WARNING ** To make sure your data is secure change :ssl_verify to true"
+        ].join("\n")
+      end
     end
     @relp_server = RelpServer.new(@host, @port,['syslog'], @ssl_context)
   end # def register
@@ -72,10 +79,12 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
       @cert_store = OpenSSL::X509::Store.new
       # Load the system default certificate path to the store
       @cert_store.set_default_paths
-      if File.directory?(@ssl_cacert)
-        @cert_store.add_path(@ssl_cacert)
-      else
-        @cert_store.add_file(@ssl_cacert)
+      if !@ssl_cacert.nil?
+        if File.directory?(@ssl_cacert)
+          @cert_store.add_path(@ssl_cacert)
+        else
+          @cert_store.add_file(@ssl_cacert)
+        end
       end
       @ssl_context.cert_store = @cert_store
       @ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER|OpenSSL::SSL::VERIFY_FAIL_IF_NO_PEER_CERT
