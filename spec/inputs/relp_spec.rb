@@ -1,6 +1,7 @@
 # encoding: utf-8
 require "logstash/util/relp"
 require_relative "../spec_helper"
+require_relative "../support/ssl"
 
 describe "inputs/relp" do
 
@@ -17,8 +18,6 @@ describe "inputs/relp" do
 
   end
 
-  describe "ssl support" do
-  end
 
   describe "multiple client connections" do
 
@@ -54,6 +53,53 @@ describe "inputs/relp" do
         expect(events).to have(nevents).with("Hello from client#{client_id}")
       end
     end
+  end
+
+  describe "SSL support" do
+
+    let(:nevents) { 100 }
+    let(:certificate) { RelpTest.certificate }
+    let(:port)        { 5513 }
+
+    let(:conf) do
+      <<-CONFIG
+        input {
+          relp {
+            type => "blah"
+            port => #{port}
+            ssl_enable => true
+            ssl_cert => "#{certificate.ssl_cert}"
+            ssl_key  => "#{certificate.ssl_key}"
+         }
+       }
+      CONFIG
+    end
+
+    let(:client) { RelpClient.new("0.0.0.0", port, ["syslog"], {:ssl => true}) }
+
+    let(:events) do
+      input(conf, nevents) do
+        nevents.times do
+          client.syslog_write("Hello from client")
+        end
+      end
+    end
+
+    context "registration and teardown" do
+
+      it "should register without errors" do
+        input = LogStash::Plugin.lookup("input", "relp").new("port" => 1235, "ssl_enable" => true,
+                                                             "ssl_cert" => certificate.ssl_cert,
+                                                             "ssl_key" => certificate.ssl_key)
+        expect {input.register}.to_not raise_error
+      end
+
+    end
+
+    it "should generated the events as expected" do
+      expect(events).to have(nevents).with("Hello from client")
+    end
 
   end
+
 end
