@@ -50,8 +50,14 @@ RSpec.configure do |c|
   c.include RelpHelpers
 end
 
-RSpec::Matchers.define :has do |size|
-  match do |pipeline|
+RSpec::Matchers.define :have do |nevents|
 
+  match do |events|
+    filter(events, @pattern).size == nevents
   end
+
+  chain :with do |pattern|
+    @pattern = pattern
+  end
+
 end

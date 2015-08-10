@@ -49,9 +49,9 @@ describe "inputs/relp" do
       end
     end
 
-    it "should do two client connections" do
+    it "should do multiple connections" do
       nclients.times do |client_id|
-        expect(filter(events,  "Hello from client#{client_id}").size).to eq(nevents)
+        expect(events).to have(nevents).with("Hello from client#{client_id}")
       end
     end
 
