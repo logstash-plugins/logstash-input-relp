@@ -4,8 +4,6 @@ require "logstash/namespace"
 require "logstash/util/relp"
 require "logstash/util/socket_peer"
 
-
-
 # Read RELP events over a TCP socket.
 #
 # For more information about RELP, see
@@ -48,7 +46,6 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
 
   def initialize(*args)
     super(*args)
-    @interrupted = false
     @relp_server = nil
   end # def initialize
 
@@ -93,7 +90,7 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
 
   private
   def relp_stream(relpserver,socket,output_queue,client_address)
-    loop do
+    while !stop?
       frame = relpserver.syslog_read(socket)
       @codec.decode(frame["message"]) do |event|
         decorate(event)
@@ -111,8 +108,7 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
 
   public
   def run(output_queue)
-    @thread = Thread.current
-    while !@interrupted
+    while !stop?
       begin
         # Start a new thread for each connection.
         Thread.start(@relp_server.accept) do |client|
@@ -146,24 +142,11 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
         # NOTE(mrichar1): This doesn't return a useful error message for some reason
         @logger.error("SSL Error", :exception => ssle,
                       :backtrace => ssle.backtrace)
-      rescue LogStash::ShutdownSignal
-        @interrupted = true
-        break
-      rescue IOError, Interrupted
-        if @interrupted
-          # Intended shutdown, get out of the loop
-          @relp_server.shutdown
-          break
-        else
-          # Else it was a genuine IOError caused by something else, so propagate it up..
-          raise
-        end
-      end
+       end
     end # loop
   end # def run
 
-  def teardown
-    @interrupted = true
+  def stop
     if @relp_server
       @relp_server.shutdown rescue nil
       @relp_server = nil
