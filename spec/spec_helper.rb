@@ -1,5 +1,7 @@
 # encoding: utf-8
 require "logstash/devutils/rspec/spec_helper"
+require "logstash/inputs/relp"
+require "logstash/util/relp"
 require "socket"
 require "support/client"
 

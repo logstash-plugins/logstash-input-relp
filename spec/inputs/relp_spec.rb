@@ -1,9 +1,8 @@
 # encoding: utf-8
-require "logstash/util/relp"
 require_relative "../spec_helper"
 require_relative "../support/ssl"
 
-describe "inputs/relp" do
+describe LogStash::Inputs::Relp do
 
   before do
     srand(RSpec.configuration.seed)
@@ -18,6 +17,14 @@ describe "inputs/relp" do
 
   end
 
+  describe "when interrupting the plugin" do
+
+    let(:port) { rand(1024..65532) }
+
+    it_behaves_like "an interruptible input plugin" do
+      let(:config) { { "port" => port } }
+    end
+  end
 
   describe "multiple client connections" do
 
