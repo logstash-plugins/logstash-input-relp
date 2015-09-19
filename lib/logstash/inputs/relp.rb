@@ -108,7 +108,6 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
 
   public
   def run(output_queue)
-    @thread = Thread.current
     while !stop?
       begin
         # Start a new thread for each connection.
@@ -148,7 +147,6 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
   end # def run
 
   def stop
-    super
     if @relp_server
       @relp_server.shutdown rescue nil
       @relp_server = nil
