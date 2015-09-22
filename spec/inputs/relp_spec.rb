@@ -8,7 +8,7 @@ describe LogStash::Inputs::Relp do
     srand(RSpec.configuration.seed)
   end
 
-  describe "registration and teardown" do
+  describe "registration and close" do
 
     it "should register without errors" do
       input = LogStash::Plugin.lookup("input", "relp").new("port" => 1234)
@@ -93,7 +93,7 @@ describe LogStash::Inputs::Relp do
       end
     end
 
-    context "registration and teardown" do
+    context "registration and close" do
 
       it "should register without errors" do
         input = LogStash::Plugin.lookup("input", "relp").new("port" => 1235, "ssl_enable" => true,
