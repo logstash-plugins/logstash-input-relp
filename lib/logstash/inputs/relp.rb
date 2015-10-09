@@ -140,9 +140,12 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
         @logger.debug('Relp Connection closed')
       rescue OpenSSL::SSL::SSLError => ssle
         # NOTE(mrichar1): This doesn't return a useful error message for some reason
-        @logger.error("SSL Error", :exception => ssle,
-                      :backtrace => ssle.backtrace)
-       end
+        @logger.error("SSL Error", :exception => ssle, :backtrace => ssle.backtrace)
+      rescue IOError
+        # if stop is called during @server_socket.accept
+        # the thread running `run` will raise an IOError
+        # We catch IOError here and do nothing, just let the method terminate
+      end
     end # loop
   end # def run
 
