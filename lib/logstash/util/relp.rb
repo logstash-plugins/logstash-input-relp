@@ -15,7 +15,7 @@ class Relp#This isn't much use on its own, but gives RelpServer and RelpClient t
 
   def valid_command?(command)
     valid_commands = Array.new
-    
+
     #Allow anything in the basic protocol for both directions
     valid_commands << 'open'
     valid_commands << 'close'
@@ -102,7 +102,7 @@ class RelpServer < Relp
 
   def initialize(host,port,required_commands=[],ssl_context=nil)
     @logger = Cabin::Channel.get(LogStash)
-    
+
     @server=true
 
     #These are things that are part of the basic protocol, but only valid in one direction (rsp, close etc.)
@@ -197,14 +197,13 @@ class RelpServer < Relp
     frame['command'] = 'serverclose'
     begin
       self.frame_write(socket,frame)
-      socket.close
+      socket.close rescue nil
     rescue ConnectionClosed
     end
   end
 
   def shutdown
-    @server.close
-  rescue Exception#@server might already be down
+    @server.close rescue nil
   end
 
   def ack(socket, txnr)

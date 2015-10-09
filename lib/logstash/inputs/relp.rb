@@ -3,6 +3,7 @@ require "logstash/inputs/base"
 require "logstash/namespace"
 require "logstash/util/relp"
 require "logstash/util/socket_peer"
+require "openssl"
 
 # Read RELP events over a TCP socket.
 #
@@ -47,11 +48,16 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
   def initialize(*args)
     super(*args)
     @relp_server = nil
+
+    # monkey patch TCPSocket and SSLSocket to include socket peer
+    TCPSocket.module_eval{include ::LogStash::Util::SocketPeer}
+    OpenSSL::SSL::SSLSocket.module_eval{include ::LogStash::Util::SocketPeer}
   end # def initialize
 
   public
   def register
     @logger.info("Starting relp input listener", :address => "#{@host}:#{@port}")
+
     if @ssl_enable
       initialize_ssl_context
       if @ssl_verify == false
@@ -62,13 +68,17 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
         ].join("\n")
       end
     end
+
+    # note that since we are opening a socket (through @relp_server) in register,
+    # we must also make sure we close it in the close method even if we also close
+    # it in the stop method since we could have a situation where register is called
+    # but not run & stop.
+
     @relp_server = RelpServer.new(@host, @port,['syslog'], @ssl_context)
   end # def register
 
   private
   def initialize_ssl_context
-    require "openssl"
-
     @ssl_context = OpenSSL::SSL::SSLContext.new
     @ssl_context.cert = OpenSSL::X509::Certificate.new(File.read(@ssl_cert))
     @ssl_context.key = OpenSSL::PKey::RSA.new(File.read(@ssl_key),@ssl_key_passphrase.value)
@@ -110,28 +120,8 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
   def run(output_queue)
     while !stop?
       begin
-        # Start a new thread for each connection.
-        Thread.start(@relp_server.accept) do |client|
-            rs = client[0]
-            socket = client[1]
-          begin
-            rs.relp_setup_connection(socket)
-            # monkeypatch a 'peer' method onto the socket.
-            socket.instance_eval { class << self; include ::LogStash::Util::SocketPeer end }
-            peer = socket.peer
-            @logger.debug("Relp Connection to #{peer} created")
-            relp_stream(rs,socket, output_queue, peer)
-          rescue Relp::ConnectionClosed => e
-            @logger.debug("Relp Connection to #{peer} Closed")
-          rescue Relp::RelpError => e
-            @logger.warn('Relp error: '+e.class.to_s+' '+e.message)
-            #TODO: Still not happy with this, are they all warn level?
-            #Will this catch everything I want it to?
-            #Relp spec says to close connection on error, ensure this is the case
-          ensure
-            socket.close rescue nil
-          end
-        end # Thread.start
+        server, socket = @relp_server.accept
+        connection_thread(server, socket, output_queue)
       rescue Relp::InvalidCommand,Relp::InappropriateCommand => e
         @logger.warn('Relp client trying to open connection with something other than open:'+e.message)
       rescue Relp::InsufficientCommands
@@ -141,18 +131,55 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
       rescue OpenSSL::SSL::SSLError => ssle
         # NOTE(mrichar1): This doesn't return a useful error message for some reason
         @logger.error("SSL Error", :exception => ssle, :backtrace => ssle.backtrace)
-      rescue IOError
-        # if stop is called during @server_socket.accept
-        # the thread running `run` will raise an IOError
-        # We catch IOError here and do nothing, just let the method terminate
+      rescue => e
+        # if this exception occured while the plugin is stopping
+        # just ignore and exit
+        raise e unless stop?
       end
-    end # loop
+    end
   end # def run
 
   def stop
+    # force close @relp_server which will escape any blocking read with a IO exception
+    # and any thread using them will exit.
+    # catch all rescue nil to discard any close errors or invalid socket
     if @relp_server
       @relp_server.shutdown rescue nil
       @relp_server = nil
+    end
+  end
+
+  def close
+    # see related comment in register: we must make sure to close the @relp_server here
+    # because it is created in the register method and we could be in the context of having
+    # register called but never run & stop, only close.
+    if @relp_server
+      @relp_server.shutdown rescue nil
+      @relp_server = nil
+    end
+  end
+
+  private
+
+  def connection_thread(server, socket, output_queue)
+    Thread.start(server, socket, output_queue) do |server, socket, output_queue|
+      begin
+        server.relp_setup_connection(socket)
+        peer = socket.peer
+        @logger.debug("Relp Connection to #{peer} created")
+        relp_stream(server,socket, output_queue, peer)
+      rescue Relp::ConnectionClosed => e
+        @logger.debug("Relp Connection to #{peer} Closed")
+      rescue Relp::RelpError => e
+        @logger.warn('Relp error: '+e.class.to_s+' '+e.message)
+        #TODO: Still not happy with this, are they all warn level?
+        #Will this catch everything I want it to?
+        #Relp spec says to close connection on error, ensure this is the case
+      rescue => e
+        # ignore other exceptions
+      ensure
+        socket.close rescue nil
+      end
     end
   end
 end # class LogStash::Inputs::Relp
