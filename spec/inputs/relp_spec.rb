@@ -43,15 +43,16 @@ describe LogStash::Inputs::Relp do
       CONFIG
     end
 
-    let(:clients) { setup_clients(nclients, port) }
+    let(:clients) { RelpHelpers.setup_clients(nclients, port) }
 
     let(:events) do
-      input(conf, (nevents*nclients)) do
+      input(conf) do |pipeline, queue|
         nevents.times do |value|
           clients.each_with_index do |client, index|
             client.syslog_write("Hello from client#{index}")
           end
         end
+        (nevents*nclients).times.collect { queue.pop }
       end
     end
 
@@ -66,7 +67,7 @@ describe LogStash::Inputs::Relp do
 
     let(:nevents) { 100 }
     let(:certificate) { RelpTest.certificate }
-    let(:port)        { 5513 }
+    let(:port)        { rand(1024..65532) }
 
     let(:conf) do
       <<-CONFIG
@@ -85,18 +86,19 @@ describe LogStash::Inputs::Relp do
 
     let(:client) { RelpClient.new("0.0.0.0", port, ["syslog"], {:ssl => true}) }
 
-    let(:events) do
-      input(conf, nevents) do
+    let!(:events) do
+      input(conf) do |pipeline, queue|
         nevents.times do
           client.syslog_write("Hello from client")
         end
+        nevents.times.collect { queue.pop }
       end
     end
 
     context "registration and close" do
 
       it "should register without errors" do
-        input = LogStash::Plugin.lookup("input", "relp").new("port" => 1235, "ssl_enable" => true,
+        input = LogStash::Plugin.lookup("input", "relp").new("port" => port, "ssl_enable" => true,
                                                              "ssl_cert" => certificate.ssl_cert,
                                                              "ssl_key" => certificate.ssl_key)
         expect {input.register}.to_not raise_error
