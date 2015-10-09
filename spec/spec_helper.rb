@@ -16,7 +16,6 @@ class RelpHelpers
   def self.filter(events, message)
      events.select{|event| event["message"] == message }
   end
-
 end
 
 RSpec::Matchers.define :have do |nevents|
@@ -28,5 +27,4 @@ RSpec::Matchers.define :have do |nevents|
   chain :with do |pattern|
     @pattern = pattern
   end
-
 end
