@@ -103,9 +103,9 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
     while !stop?
       frame = relpserver.syslog_read(socket)
       @codec.decode(frame["message"]) do |event|
+        event.set("host", client_address)
+        event.set("sslsubject", socket.peer_cert.subject) if @ssl_enable && @ssl_verify
         decorate(event)
-        event["host"] = client_address
-        event["sslsubject"] ||= socket.peer_cert.subject if @ssl_enable && @ssl_verify
         output_queue << event
       end
 
