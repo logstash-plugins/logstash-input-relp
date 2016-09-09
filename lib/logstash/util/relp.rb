@@ -1,5 +1,6 @@
 # encoding: utf-8
 require "socket"
+require "cabin"
 
 class Relp#This isn't much use on its own, but gives RelpServer and RelpClient things
 
@@ -101,7 +102,7 @@ end
 class RelpServer < Relp
 
   def initialize(host,port,required_commands=[],ssl_context=nil)
-    @logger = Cabin::Channel.get(LogStash)
+    @logger = ::Cabin::Channel.get(LogStash)
 
     @server=true
 

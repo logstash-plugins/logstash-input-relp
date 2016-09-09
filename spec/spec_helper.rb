@@ -14,7 +14,7 @@ class RelpHelpers
   end
 
   def self.filter(events, message)
-     events.select{|event| event["message"] == message }
+     events.select{|event| event.set("message", message) }
   end
 end
 
