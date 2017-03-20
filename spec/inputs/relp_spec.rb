@@ -68,9 +68,9 @@ describe LogStash::Inputs::Relp do
     end
 
     it "should do multiple connections" do
-      nclients.times do |client_id|
-        expect(events).to have(nevents).with("Hello from client#{client_id}")
-      end
+      expect(events.size).to eq(nevents * nclients)
+      grouped = events.group_by { |e| /(client\d)/.match(e.get("message")) }
+      expect(grouped.size).to eq(nclients)
     end
   end
 
