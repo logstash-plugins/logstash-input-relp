@@ -1,5 +1,6 @@
 # encoding: utf-8
 require_relative "../spec_helper"
+require "logstash/devutils/rspec/shared_examples"
 require_relative "../support/ssl"
 
 describe LogStash::Inputs::Relp do
