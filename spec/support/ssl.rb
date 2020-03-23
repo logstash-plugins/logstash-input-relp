@@ -4,13 +4,16 @@ require "stud/temporary"
 module RelpTest
 
   class Certicate
+    require 'flores/pki'
+
     attr_reader :ssl_key, :ssl_cert
 
     def initialize
+      certificate, key = Flores::PKI.generate
       @ssl_cert = Stud::Temporary.pathname("ssl_certificate")
       @ssl_key = Stud::Temporary.pathname("ssl_key")
-
-      system("openssl req -x509  -batch -nodes -newkey rsa:2048 -keyout #{ssl_key} -out #{ssl_cert} -subj /CN=localhost > /dev/null 2>&1")
+      IO.write(@ssl_cert, certificate.to_pem)
+      IO.write(@ssl_key, key.to_pem)
     end
   end
 
