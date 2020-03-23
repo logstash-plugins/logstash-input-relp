@@ -25,5 +25,6 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'logstash-codec-plain'
   s.add_development_dependency 'logstash-devutils'
   s.add_development_dependency 'cabin'
+  s.add_development_dependency 'flores'
 end
 
