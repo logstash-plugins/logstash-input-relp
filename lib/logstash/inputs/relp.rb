@@ -106,7 +106,7 @@ class LogStash::Inputs::Relp < LogStash::Inputs::Base
         decorate(event)
         event.set("host", client_address)
         if @ssl_enable && @ssl_verify && event.get("ssl_context").nil?
-          event.set("sslsubject", socket.peer_cert.subject)
+          event.set("sslsubject", socket.peer_cert.subject.to_s)
         end
         output_queue << event
       end
