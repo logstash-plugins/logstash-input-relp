@@ -1,3 +1,6 @@
+## Main Changes
+  - Fix a bug where the TLS subject for the connection is not correctly set
+
 ## 3.0.4
   - Docs: Set the default_codec doc attribute.
 
